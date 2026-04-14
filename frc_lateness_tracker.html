@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FRC Lateness Tracker</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f5f4f1;
+  --surface: #ffffff;
+  --surface2: #f9f8f6;
+  --border: rgba(0,0,0,0.09);
+  --border-md: rgba(0,0,0,0.15);
+  --text: #1a1a1a;
+  --text-muted: #666;
+  --text-hint: #aaa;
+  --warn-bg: #faeeda;
+  --warn-text: #854f0b;
+  --warn-border: #ef9f27;
+  --danger-bg: #fcebeb;
+  --danger-text: #a32d2d;
+  --past-bg: #f1efe8;
+  --past-text: #888780;
+  --info-bg: #e6f1fb;
+  --info-text: #185fa5;
+  --accent: #378add;
+  --accent-dark: #185fa5;
+  --radius: 10px;
+  --radius-sm: 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161614;
+    --surface: #222220;
+    --surface2: #1c1c1a;
+    --border: rgba(255,255,255,0.08);
+    --border-md: rgba(255,255,255,0.15);
+    --text: #f0efed;
+    --text-muted: #999;
+    --text-hint: #555;
+    --warn-bg: #412402;
+    --warn-text: #fac775;
+    --warn-border: #ba7517;
+    --danger-bg: #501313;
+    --danger-text: #f09595;
+    --past-bg: #2c2c2a;
+    --past-text: #888780;
+    --info-bg: #042c53;
+    --info-text: #85b7eb;
+  }
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  background: var(--surface);
+  border-bottom: 0.5px solid var(--border-md);
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 54px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.topbar h1 { font-size: 15px; font-weight: 600; white-space: nowrap; }
+.topbar-spacer { flex: 1; }
+.topbar label { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.topbar input[type=text] {
+  font-size: 13px;
+  padding: 5px 10px;
+  border: 0.5px solid var(--border-md);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--text);
+  outline: none;
+}
+.topbar input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(55,138,221,0.15); }
+.topbar input.event-input { width: 120px; }
+
+.settings-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 200;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding-top: 54px;
+}
+.settings-overlay.open { display: flex; }
+.settings-panel {
+  background: var(--surface);
+  border: 0.5px solid var(--border-md);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  width: 320px;
+  margin-right: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.settings-panel h2 { font-size: 14px; font-weight: 600; }
+.settings-field { display: flex; flex-direction: column; gap: 5px; }
+.settings-field label { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+.settings-field input[type=text], .settings-field input[type=password] {
+  font-size: 13px;
+  padding: 7px 10px;
+  border: 0.5px solid var(--border-md);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--text);
+  outline: none;
+  width: 100%;
+}
+.settings-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(55,138,221,0.15); }
+.settings-field .hint { font-size: 11px; color: var(--text-hint); }
+.settings-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+button {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  border: 0.5px solid var(--border-md);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s, transform 0.08s;
+  white-space: nowrap;
+}
+button:hover { background: var(--surface2); }
+button:active { transform: scale(0.97); }
+button.primary { background: var(--accent); border-color: var(--accent-dark); color: #fff; }
+button.primary:hover { background: var(--accent-dark); }
+button.danger-btn { background: var(--danger-bg); border-color: rgba(162,45,45,0.3); color: var(--danger-text); }
+
+.layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+.sidebar {
+  width: 220px;
+  min-width: 180px;
+  border-right: 0.5px solid var(--border-md);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sidebar-header {
+  padding: 12px 14px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 0.5px solid var(--border);
+}
+.sidebar-body { flex: 1; overflow-y: auto; padding: 8px 0; }
+.flagged-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+}
+.flagged-item .team-num { font-weight: 600; flex: 1; }
+.flagged-item .late-count {
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  padding: 1px 7px;
+  border-radius: 20px;
+}
+.unflag-btn {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 0.5px solid var(--border-md);
+  background: transparent;
+  color: var(--text-hint);
+  cursor: pointer;
+}
+.unflag-btn:hover { color: var(--danger-text); border-color: var(--danger-text); background: var(--danger-bg); }
+.sidebar-empty { padding: 16px 14px; font-size: 13px; color: var(--text-hint); line-height: 1.6; }
+
+.main { flex: 1; overflow-y: auto; padding: 1.25rem 1.5rem; }
+
+.status-row { display: flex; align-items: center; gap: 12px; margin-bottom: 1rem; }
+.status { font-size: 13px; color: var(--text-muted); flex: 1; }
+.status.error { color: var(--danger-text); }
+
+.sliders {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin-bottom: 1.25rem;
+  align-items: center;
+}
+.slider-row { display: flex; align-items: center; gap: 8px; }
+.slider-row span { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.slider-row input[type=range] { width: 90px; accent-color: var(--accent); }
+.slider-val { font-size: 12px; font-weight: 600; color: var(--text); min-width: 26px; }
+
+.match-list { display: flex; flex-direction: column; gap: 6px; }
+
+.match-row {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: 90px 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+.match-row.has-late { border-color: var(--warn-border); }
+.match-row.is-past { opacity: 0.5; }
+
+.match-id { font-size: 13px; font-weight: 600; }
+.match-sched { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+
+.alliances { display: flex; flex-direction: column; gap: 5px; }
+.alliance-line { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.alliance-label { font-size: 11px; font-weight: 700; width: 26px; flex-shrink: 0; }
+.alliance-label.red { color: #a32d2d; }
+.alliance-label.blue { color: #185fa5; }
+
+.team-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 0.5px solid var(--border-md);
+  background: var(--surface2);
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+  user-select: none;
+}
+.team-chip:hover { background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-text); }
+.team-chip.flagged {
+  background: var(--warn-bg);
+  border-color: var(--warn-border);
+  color: var(--warn-text);
+  font-weight: 600;
+}
+.team-chip.flagged::before {
+  content: '!';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--warn-text);
+  color: var(--warn-bg);
+  font-size: 9px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.team-chip.marked-late {
+  background: var(--danger-bg);
+  border-color: rgba(162,45,45,0.4);
+  color: var(--danger-text);
+  font-weight: 600;
+}
+
+.row-actions { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+.mark-btn {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 0.5px solid var(--border-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mark-btn:hover { background: var(--danger-bg); border-color: rgba(162,45,45,0.3); color: var(--danger-text); }
+
+.empty-state { text-align: center; padding: 4rem 1rem; color: var(--text-muted); }
+.empty-state p { font-size: 15px; margin-bottom: 6px; }
+.empty-state small { font-size: 13px; color: var(--text-hint); }
+
+.next-match-banner {
+  padding: 10px 1.5rem;
+  border-bottom: 0.5px solid var(--border);
+  background: var(--surface);
+  display: none;
+}
+.next-match-banner.visible { display: block; }
+.next-match-banner.has-flagged { background: var(--warn-bg); border-bottom-color: var(--warn-border); }
+.banner-top { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.banner-match { font-size: 13px; font-weight: 600; color: var(--text); }
+.banner-time { font-size: 12px; color: var(--text-muted); }
+.banner-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; color: var(--warn-text); }
+.banner-label.ok { color: var(--success-text); }
+.banner-teams { display: flex; gap: 6px; flex-wrap: wrap; }
+.banner-team-pill { font-size: 13px; font-weight: 600; padding: 3px 12px; border-radius: 20px; background: var(--warn-text); color: var(--warn-bg); }
+.banner-ok { font-size: 13px; color: var(--success-text); font-weight: 500; }
+
+.mock-time-bar {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 1.5rem;
+  background: var(--warn-bg);
+  border-bottom: 0.5px solid var(--warn-border);
+  font-size: 12px;
+  color: var(--warn-text);
+  font-weight: 500;
+}
+.mock-time-bar.active { display: flex; }
+.mock-time-bar button { font-size: 11px; padding: 1px 8px; }
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--text);
+  color: var(--surface);
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: transform 0.25s ease;
+  z-index: 999;
+  pointer-events: none;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>FRC lateness tracker</h1>
+  <label>Event</label>
+  <input type="text" id="eventKey" class="event-input" value="2026onwin" placeholder="e.g. 2026onwin" />
+  <div class="topbar-spacer"></div>
+  <button class="primary" onclick="loadMatches()">Fetch</button>
+  <button id="autoBtn" onclick="toggleAutoRefresh()">Auto-refresh</button>
+  <button class="danger-btn" onclick="clearAllFlags()">Clear flags</button>
+  <button onclick="toggleSettings()" id="settingsBtn" title="Settings">&#9881;</button>
+</div>
+
+<div class="mock-time-bar" id="mockTimeBar">
+  Simulated time: <strong id="mockTimeDisplay"></strong>
+  <button onclick="clearMockTime()">Clear</button>
+</div>
+
+<div class="settings-overlay" id="settingsOverlay" onclick="overlayClick(event)">
+  <div class="settings-panel" id="settingsPanel">
+    <h2>Settings</h2>
+    <div class="settings-field">
+      <label>TBA API key</label>
+      <input type="password" id="apiKey" value="Q5Hl45wwgF3m5fIMV52B2RNOqTeIWqFaG8AoCf8UYgoevbNVWSPpfEzJnjvx9xlX" placeholder="Get one at thebluealliance.com/account" />
+      <span class="hint">Saved in your browser. Never shared.</span>
+    </div>
+    <div class="settings-field">
+      <label>Simulate time of day</label>
+      <input type="time" id="mockTimeInput" placeholder="HH:MM" />
+      <span class="hint">Leave blank to use real time. Useful for testing.</span>
+    </div>
+    <div class="settings-actions">
+      <button onclick="saveSettings()">Save</button>
+      <button onclick="closeSettings()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="next-match-banner" id="nextMatchBanner"></div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="sidebar-header">Flagged teams</div>
+    <div class="sidebar-body" id="sidebar"></div>
+  </div>
+
+  <div class="main">
+    <div class="status-row">
+      <div class="status" id="statusBar">Enter an event key and TBA API key, then click Fetch.</div>
+    </div>
+
+    <div class="sliders">
+      <div class="slider-row">
+        <span>Field behind</span>
+        <input type="range" id="fieldDelay" min="0" max="60" step="1" value="0"
+          oninput="document.getElementById('fdOut').textContent=this.value+'m'; renderMatches()" />
+        <span class="slider-val" id="fdOut">0m</span>
+      </div>
+      <div class="slider-row">
+        <span>Walk time</span>
+        <input type="range" id="walkTime" min="1" max="20" step="1" value="5"
+          oninput="document.getElementById('wtOut').textContent=this.value+'m'; renderMatches()" />
+        <span class="slider-val" id="wtOut">5m</span>
+      </div>
+      <div class="slider-row">
+        <span>Queue call</span>
+        <input type="range" id="queueBefore" min="3" max="20" step="1" value="8"
+          oninput="document.getElementById('qbOut').textContent=this.value+'m'; renderMatches()" />
+        <span class="slider-val" id="qbOut">8m</span>
+      </div>
+    </div>
+
+    <div class="match-list" id="matchList">
+      <div class="empty-state">
+        <p>No matches loaded.</p>
+        <small>Enter an event key (e.g. 2026onwin) and your TBA API key above.</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SETTINGS_KEY = 'frc_lateness_settings';
+
+let mockTimeMs = null;
+
+function getNow() {
+  return mockTimeMs !== null ? mockTimeMs : Date.now();
+}
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s.apiKey) document.getElementById('apiKey').value = s.apiKey;
+      if (s.mockTime) {
+        document.getElementById('mockTimeInput').value = s.mockTime;
+        applyMockTime(s.mockTime);
+      }
+    }
+  } catch(e) {}
+}
+
+function saveSettings() {
+  const mockVal = document.getElementById('mockTimeInput').value.trim();
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+      apiKey: document.getElementById('apiKey').value.trim(),
+      mockTime: mockVal
+    }));
+  } catch(e) {}
+  if (mockVal) applyMockTime(mockVal);
+  else clearMockTime();
+  closeSettings();
+  showToast('Settings saved');
+}
+
+function applyMockTime(val) {
+  const [h, m] = val.split(':').map(Number);
+  const matches = allMatches.filter(x => x.time).sort((a, b) => a.time - b.time);
+  const baseDate = matches.length > 0 ? new Date(matches[0].time * 1000) : new Date();
+  const d = new Date(baseDate);
+  d.setHours(h, m, 0, 0);
+  mockTimeMs = d.getTime();
+  const bar = document.getElementById('mockTimeBar');
+  document.getElementById('mockTimeDisplay').textContent = val;
+  bar.classList.add('active');
+  renderMatches();
+}
+
+function clearMockTime() {
+  mockTimeMs = null;
+  document.getElementById('mockTimeInput').value = '';
+  document.getElementById('mockTimeBar').classList.remove('active');
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      delete s.mockTime;
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+    }
+  } catch(e) {}
+  renderMatches();
+}
+
+function toggleSettings() {
+  const o = document.getElementById('settingsOverlay');
+  o.classList.toggle('open');
+}
+
+function closeSettings() {
+  document.getElementById('settingsOverlay').classList.remove('open');
+}
+
+function overlayClick(e) {
+  if (e.target === document.getElementById('settingsOverlay')) closeSettings();
+}
+
+
+let allMatches = [];
+let autoInterval = null;
+let lateLog = {};
+let flaggedTeams = {};
+const STORAGE_KEY = 'frc_lateness_v2';
+
+function loadFlags() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) { const p = JSON.parse(raw); lateLog = p.lateLog || {}; flaggedTeams = p.flaggedTeams || {}; }
+  } catch(e) {}
+}
+
+function saveFlags() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ lateLog, flaggedTeams })); } catch(e) {}
+}
+
+function rebuildFlagged() {
+  flaggedTeams = {};
+  for (const teams of Object.values(lateLog))
+    for (const t of teams)
+      flaggedTeams[t] = (flaggedTeams[t] || 0) + 1;
+}
+
+function clearAllFlags() {
+  if (!confirm('Clear all lateness flags?')) return;
+  lateLog = {}; flaggedTeams = {};
+  saveFlags(); renderSidebar(); renderMatches();
+  showToast('All flags cleared');
+}
+
+function toggleLate(matchKey, teamNum) {
+  if (!lateLog[matchKey]) lateLog[matchKey] = [];
+  const idx = lateLog[matchKey].indexOf(teamNum);
+  if (idx >= 0) lateLog[matchKey].splice(idx, 1);
+  else lateLog[matchKey].push(teamNum);
+  if (!lateLog[matchKey].length) delete lateLog[matchKey];
+  rebuildFlagged(); saveFlags(); renderSidebar(); renderMatches();
+}
+
+function markAllLateFromRow(btn) {
+  const row = btn.closest('.match-row');
+  const matchKey = row.dataset.match;
+  const teams = row.dataset.teams.split(',').filter(Boolean);
+  markAllLate(matchKey, teams);
+}
+
+function markAllLate(matchKey, teams) {
+  if (!lateLog[matchKey]) lateLog[matchKey] = [];
+  const allMarked = teams.every(t => lateLog[matchKey].includes(t));
+  if (allMarked) delete lateLog[matchKey];
+  else lateLog[matchKey] = [...new Set([...lateLog[matchKey], ...teams])];
+  rebuildFlagged(); saveFlags(); renderSidebar(); renderMatches();
+}
+
+function unflagTeam(teamNum) {
+  for (const key of Object.keys(lateLog)) {
+    lateLog[key] = lateLog[key].filter(t => t !== teamNum);
+    if (!lateLog[key].length) delete lateLog[key];
+  }
+  rebuildFlagged(); saveFlags(); renderSidebar(); renderMatches();
+  showToast('Team ' + teamNum + ' unflagged');
+}
+
+function fmt12(ts) {
+  const d = new Date(ts * 1000);
+  let h = d.getHours(), m = d.getMinutes();
+  const ap = h >= 12 ? 'pm' : 'am';
+  h = h % 12 || 12;
+  return h + ':' + String(m).padStart(2, '0') + ' ' + ap;
+}
+
+function matchLabel(m) {
+  const labels = { qm: 'Qual', qf: 'QF', sf: 'SF', f: 'Final' };
+  const base = labels[m.comp_level] || m.comp_level.toUpperCase();
+  if (m.comp_level === 'qm') return base + ' ' + m.match_number;
+  return base + ' ' + m.set_number + '-' + m.match_number;
+}
+
+function teamsFor(m, side) {
+  return (m.alliances[side].team_keys || []).map(t => t.replace('frc', ''));
+}
+
+function renderSidebar() {
+  const el = document.getElementById('sidebar');
+  const entries = Object.entries(flaggedTeams).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) {
+    el.innerHTML = '<div class="sidebar-empty">No teams flagged yet.<br><br>Click any team number on a match to mark them late.</div>';
+    return;
+  }
+  el.innerHTML = entries.map(([team, count]) => `
+    <div class="flagged-item">
+      <span class="team-num">${team}</span>
+      <span class="late-count">${count}x</span>
+      <button class="unflag-btn" onclick="unflagTeam('${team}')">x</button>
+    </div>`).join('');
+}
+
+function renderBanner(sorted, delay, walk, qBefore) {
+  const banner = document.getElementById('nextMatchBanner');
+  const now = getNow();
+
+  let next = sorted.find(m => {
+    const predictTs = m.predicted_time || m.time;
+    return (predictTs + delay * 60) * 1000 > now;
+  });
+
+  const allPast = !next;
+  if (allPast) next = sorted[sorted.length - 1];
+
+  if (!next) {
+    banner.className = 'next-match-banner';
+    banner.innerHTML = '';
+    return;
+  }
+
+  const redTeams = teamsFor(next, 'red');
+  const blueTeams = teamsFor(next, 'blue');
+  const allTeams = [...redTeams, ...blueTeams];
+  const lateTeams = allTeams.filter(t => flaggedTeams[t]);
+
+  const predictTs = next.predicted_time || next.time;
+  const actualMatchMs = (predictTs + delay * 60) * 1000;
+  const actualQueueMs = actualMatchMs - qBefore * 60000;
+  const mustLeaveMs = actualQueueMs - walk * 60000;
+  const minUntil = Math.round((mustLeaveMs - now) / 60000);
+  const leaveStr = minUntil > 0 ? `leave pit in ${minUntil} min` : minUntil === 0 ? 'leave NOW' : `${Math.abs(minUntil)} min late`;
+
+  if (lateTeams.length > 0) {
+    banner.className = 'next-match-banner visible has-flagged';
+    banner.innerHTML = `
+      <div class="banner-top">
+        <span class="banner-match">${allPast ? 'Last match' : 'Next'}: ${matchLabel(next)}</span>
+        <span class="banner-time">${fmt12(next.time)}${allPast ? ' (completed)' : ' · ' + leaveStr}</span>
+      </div>
+      <div class="banner-label">Previously late teams in this match</div>
+      <div class="banner-teams">${lateTeams.map(t =>
+        `<span class="banner-team-pill">${t} (${flaggedTeams[t]}x late)</span>`
+      ).join('')}</div>`;
+  } else {
+    banner.className = 'next-match-banner visible';
+    banner.innerHTML = `
+      <div class="banner-top">
+        <span class="banner-match">${allPast ? 'Last match' : 'Next'}: ${matchLabel(next)}</span>
+        <span class="banner-time">${fmt12(next.time)}${allPast ? ' (completed)' : ' · ' + leaveStr}</span>
+      </div>
+      <div class="banner-label ok">All clear</div>
+      <div class="banner-ok">No flagged teams in this match.</div>`;
+  }
+}
+
+function renderMatches() {
+  const el = document.getElementById('matchList');
+  if (!allMatches.length) return;
+
+  const delay = parseInt(document.getElementById('fieldDelay').value);
+  const walk = parseInt(document.getElementById('walkTime').value);
+  const qBefore = parseInt(document.getElementById('queueBefore').value);
+  const now = getNow();
+
+  const sorted = [...allMatches]
+    .filter(m => m.time)
+    .sort((a, b) => (a.predicted_time || a.time) - (b.predicted_time || b.time));
+
+  if (!sorted.length) {
+    el.innerHTML = '<div class="empty-state"><p>No scheduled matches found.</p></div>';
+    return;
+  }
+
+  renderBanner(sorted, delay, walk, qBefore);
+
+  el.innerHTML = sorted.map(m => {
+    const predictTs = m.predicted_time || m.time;
+    const actualMatchMs = (predictTs + delay * 60) * 1000;
+    const actualQueueMs = actualMatchMs - qBefore * 60000;
+    const mustLeaveMs = actualQueueMs - walk * 60000;
+    const isPast = actualMatchMs < now;
+    const matchKey = m.key;
+
+    const redTeams = teamsFor(m, 'red');
+    const blueTeams = teamsFor(m, 'blue');
+    const allTeams = [...redTeams, ...blueTeams];
+    const hasLate = allTeams.some(t => flaggedTeams[t]);
+    const leaveStr = isPast ? '' : ' · leave ' + fmt12(mustLeaveMs / 1000);
+
+    const chip = t => {
+      const markedHere = (lateLog[matchKey] || []).includes(t);
+      const isFlagged = !!flaggedTeams[t];
+      let cls = 'team-chip';
+      if (markedHere) cls += ' marked-late';
+      if (isFlagged) cls += ' flagged';
+      const tip = isFlagged
+        ? `Team ${t} — ${flaggedTeams[t]}x late. Click to ${markedHere ? 'unmark' : 'mark'} on this match.`
+        : `Click to mark team ${t} late on this match`;
+      return `<span class="${cls}" title="${tip}" onclick="toggleLate('${matchKey}','${t}')">${t}</span>`;
+    };
+
+    return `<div class="match-row${hasLate ? ' has-late' : ''}${isPast ? ' is-past' : ''}" data-match="${matchKey}" data-teams="${allTeams.join(',')}">
+      <div>
+        <div class="match-id">${matchLabel(m)}</div>
+        <div class="match-sched">${fmt12(m.time)}${leaveStr}</div>
+      </div>
+      <div class="alliances">
+        <div class="alliance-line"><span class="alliance-label red">Red</span>${redTeams.map(chip).join('')}</div>
+        <div class="alliance-line"><span class="alliance-label blue">Blue</span>${blueTeams.map(chip).join('')}</div>
+      </div>
+      <div class="row-actions">
+        <button class="mark-btn" onclick="markAllLateFromRow(this)">Mark all late</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadMatches() {
+  const event = document.getElementById('eventKey').value.trim();
+  const key = document.getElementById('apiKey').value.trim();
+  const statusBar = document.getElementById('statusBar');
+
+  if (!event || !key) {
+    statusBar.textContent = 'Please enter an event key and API key.';
+    statusBar.className = 'status error';
+    return;
+  }
+
+  statusBar.textContent = 'Fetching from The Blue Alliance...';
+  statusBar.className = 'status';
+
+  try {
+    const res = await fetch(`https://www.thebluealliance.com/api/v3/event/${event}/matches`, {
+      headers: { 'X-TBA-Auth-Key': key }
+    });
+    if (!res.ok) throw new Error('TBA returned HTTP ' + res.status);
+    const data = await res.json();
+    allMatches = data;
+
+    if (!data.length) {
+      statusBar.textContent = 'No matches found — schedule may not be posted yet.';
+      document.getElementById('matchList').innerHTML = '<div class="empty-state"><p>No matches found.</p><small>The schedule may not be posted yet on TBA.</small></div>';
+      return;
+    }
+
+    const upcoming = data.filter(m => m.time && (!m.actual_time || m.actual_time === 0)).length;
+    statusBar.textContent = `${data.length} matches · ${upcoming} upcoming · fetched ${new Date().toLocaleTimeString()}`;
+    renderMatches();
+  } catch(e) {
+    statusBar.textContent = 'Error: ' + e.message;
+    statusBar.className = 'status error';
+  }
+}
+
+function toggleAutoRefresh() {
+  const btn = document.getElementById('autoBtn');
+  if (autoInterval) {
+    clearInterval(autoInterval);
+    autoInterval = null;
+    btn.textContent = 'Auto-refresh';
+    btn.classList.remove('primary');
+  } else {
+    loadMatches();
+    autoInterval = setInterval(loadMatches, 30000);
+    setInterval(renderMatches, 15000);
+    btn.textContent = 'Stop refresh';
+    btn.classList.add('primary');
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+loadSettings();
+loadFlags();
+renderSidebar();
+</script>
+</body>
+</html>
