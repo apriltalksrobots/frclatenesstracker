@@ -1,60 +1,94 @@
 # FRC Tools
 
-A pair of standalone web tools for FRC events. Both are single HTML files — no build step, no dependencies, just open in a browser.
+A pair of standalone web tools for FRC events, powered by [The Blue Alliance](https://www.thebluealliance.com). Both are single HTML files — no build step, no dependencies, just open in a browser.
+
+No TBA API key needed by end users. The key lives in a Cloudflare Worker proxy that you deploy once.
 
 ---
 
-## frc_match_timer.html — Pit departure calculator
+## Tools
 
-Helps your team know when to leave the pit to make it to the field on time.
+### frc_lateness_tracker.html — Field lateness tracker
 
-- Enter your team number and event key to pull your match schedule live from [The Blue Alliance](https://www.thebluealliance.com)
-- Adjust sliders for how far the field is running behind, your walk time from pit to field, and how early queue calls happen
-- Shows a card for each match with a countdown to when you need to leave
-- Auto-refresh keeps times current throughout the day
+For field managers. Shows the full event match schedule and lets you flag teams that arrive late to the field. Flagged teams get a warning badge on all future matches, and a banner at the top always shows the next match with any flagged teams called out.
 
-**Setup:** Open in any browser. Enter your TBA API key (get one free at [thebluealliance.com/account](https://www.thebluealliance.com/account)), your team number, and your event key (e.g. `2026onwin`).
+- Click any team chip to mark them late on that match
+- Flags persist across page refreshes
+- Mock time (in ⚙ settings) lets you test against completed events
 
----
+### frc_match_timer.html — Pit departure calculator
 
-## frc_lateness_tracker.html — Field lateness tracker
+For teams. Shows your upcoming matches and counts down when you need to leave the pit to make queue on time.
 
-Helps field staff track which teams are habitually late to the field.
-
-- Pulls the full event match schedule from TBA (no team filter — shows every match)
-- Click any team chip to mark them as late on that match
-- Flagged teams show a warning badge on all their future matches
-- The banner at the top always shows the next upcoming match and calls out any flagged teams in it
-- Flags persist across page refreshes via `localStorage`
-- **Mock time** (in settings) lets you simulate a time of day for testing against completed events
-
-**Setup:** Open in any browser. Click the ⚙ button and enter your TBA API key and optionally a simulated time for testing. Enter your event key and click Fetch.
-
-### Keyboard of team chip states
-
-| Appearance | Meaning |
-|---|---|
-| Normal chip | Team has no lateness history |
-| Amber chip with `!` | Team has been marked late at a previous match |
-| Red chip | Team was marked late on this specific match |
+- Adjustable sliders for field delay, walk time, and queue call window
+- Auto-refresh keeps times current
 
 ---
 
-## Getting a TBA API key
+## Setup
 
+### 1. Deploy the proxy worker
+
+The tools fetch data through a Cloudflare Worker that holds your TBA API key. This is a one-time setup.
+
+**Get a free TBA API key:**
 1. Sign in at [thebluealliance.com](https://www.thebluealliance.com)
-2. Go to [Account settings](https://www.thebluealliance.com/account)
-3. Under **Read API Keys**, generate a new key
-4. Paste it into the app's settings
+2. Go to [Account → Read API Keys](https://www.thebluealliance.com/account)
+3. Generate a new key
+
+**Deploy the worker:**
+
+```bash
+cd worker
+npm install -g wrangler      # install Cloudflare's CLI (one-time)
+wrangler login               # sign in to Cloudflare (free account)
+wrangler deploy              # deploy the worker
+wrangler secret put TBA_API_KEY   # paste your TBA key when prompted
+```
+
+Your worker URL will be printed after deploy — it looks like:
+```
+https://frc-tba-proxy.YOUR_SUBDOMAIN.workers.dev
+```
+
+### 2. Update the proxy URL in the HTML files
+
+In both `frc_lateness_tracker.html` and `frc_match_timer.html`, find this line near the bottom:
+
+```js
+const PROXY_URL = 'https://frc-tba-proxy.YOUR_SUBDOMAIN.workers.dev';
+```
+
+Replace `YOUR_SUBDOMAIN` with your actual Cloudflare subdomain.
+
+### 3. Host on GitHub Pages (optional but recommended)
+
+Push to GitHub and enable Pages (Settings → Pages → Deploy from branch → `main`). Your tools will be live at:
+
+```
+https://YOUR_USERNAME.github.io/frc-tools/frc_lateness_tracker.html
+https://YOUR_USERNAME.github.io/frc-tools/frc_match_timer.html
+```
+
+Anyone on your team can open these links on any device — no download, no API key needed.
+
+---
 
 ## Pushing to GitHub
 
 ```bash
-git init
-git add .
-git commit -m "Initial commit"
 git remote add origin https://github.com/YOUR_USERNAME/frc-tools.git
 git push -u origin main
 ```
 
-You can also enable **GitHub Pages** (Settings → Pages → Deploy from branch → `main`) to host the tools online so anyone on your team can access them from a phone or laptop at the event without downloading anything.
+---
+
+## Cloudflare free tier
+
+The Worker uses Cloudflare's free tier which includes 100,000 requests/day — more than enough for any FRC event.
+
+---
+
+## Credits
+
+Data provided by [The Blue Alliance](https://www.thebluealliance.com). Please link back to TBA from any derivative tools per their [developer guidelines](https://www.thebluealliance.com/apidocs).

@@ -371,11 +371,6 @@ button.danger-btn { background: var(--danger-bg); border-color: rgba(162,45,45,0
   <div class="settings-panel" id="settingsPanel">
     <h2>Settings</h2>
     <div class="settings-field">
-      <label>TBA API key</label>
-      <input type="password" id="apiKey" value="Q5Hl45wwgF3m5fIMV52B2RNOqTeIWqFaG8AoCf8UYgoevbNVWSPpfEzJnjvx9xlX" placeholder="Get one at thebluealliance.com/account" />
-      <span class="hint">Saved in your browser. Never shared.</span>
-    </div>
-    <div class="settings-field">
       <label>Simulate time of day</label>
       <input type="time" id="mockTimeInput" placeholder="HH:MM" />
       <span class="hint">Leave blank to use real time. Useful for testing.</span>
@@ -434,6 +429,7 @@ button.danger-btn { background: var(--danger-bg); border-color: rgba(162,45,45,0
 
 <script>
 const SETTINGS_KEY = 'frc_lateness_settings';
+const PROXY_URL = window.location.origin;
 
 let mockTimeMs = null;
 
@@ -446,7 +442,6 @@ function loadSettings() {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (raw) {
       const s = JSON.parse(raw);
-      if (s.apiKey) document.getElementById('apiKey').value = s.apiKey;
       if (s.mockTime) {
         document.getElementById('mockTimeInput').value = s.mockTime;
         applyMockTime(s.mockTime);
@@ -458,10 +453,7 @@ function loadSettings() {
 function saveSettings() {
   const mockVal = document.getElementById('mockTimeInput').value.trim();
   try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
-      apiKey: document.getElementById('apiKey').value.trim(),
-      mockTime: mockVal
-    }));
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ mockTime: mockVal }));
   } catch(e) {}
   if (mockVal) applyMockTime(mockVal);
   else clearMockTime();
@@ -726,11 +718,10 @@ function renderMatches() {
 
 async function loadMatches() {
   const event = document.getElementById('eventKey').value.trim();
-  const key = document.getElementById('apiKey').value.trim();
   const statusBar = document.getElementById('statusBar');
 
-  if (!event || !key) {
-    statusBar.textContent = 'Please enter an event key and API key.';
+  if (!event) {
+    statusBar.textContent = 'Please enter an event key.';
     statusBar.className = 'status error';
     return;
   }
@@ -739,10 +730,8 @@ async function loadMatches() {
   statusBar.className = 'status';
 
   try {
-    const res = await fetch(`https://www.thebluealliance.com/api/v3/event/${event}/matches`, {
-      headers: { 'X-TBA-Auth-Key': key }
-    });
-    if (!res.ok) throw new Error('TBA returned HTTP ' + res.status);
+    const res = await fetch(`${PROXY_URL}/event/${event}/matches`);
+    if (!res.ok) throw new Error('Request failed with HTTP ' + res.status);
     const data = await res.json();
     allMatches = data;
 

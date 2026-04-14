@@ -1,0 +1,9 @@
+name = "frc-tba-proxy"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+# After deploying, set your TBA key as a secret:
+#   npx wrangler secret put TBA_API_KEY
+#
+# Your worker will be available at:
+#   https://frc-tba-proxy.<your-subdomain>.workers.dev
