@@ -11,7 +11,7 @@ const TBA_BASE = 'https://www.thebluealliance.com/api/v3';
 
 // Set this to your GitHub Pages URL, e.g. https://YOUR_USERNAME.github.io
 // Or use '*' to allow any origin (fine for a small internal tool)
-const ALLOWED_ORIGIN = 'https://apriltalksrobots.github.io';
+const ALLOWED_ORIGIN = '*';
 
 const ALLOWED_PREFIXES = ['/event/', '/team/', '/events/', '/teams/', '/district/', '/status'];
 
