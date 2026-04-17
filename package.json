@@ -1,0 +1,8 @@
+{
+  "name": "frc-tools",
+  "version": "1.0.0",
+  "description": "FRC event tools powered by The Blue Alliance",
+  "scripts": {
+    "build": "echo 'No build step required'"
+  }
+}
